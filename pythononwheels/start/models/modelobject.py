@@ -40,8 +40,20 @@ class ModelObject():
             Rails: see: https://apidock.com/rails/ActiveRecord/Dirty
         """
         # will hold last value before change + a flag if this attribute is dirty.
+        #print("setup_dirty_model")
         self.dirty = {}
+        self.dirty_shadow={}
+        for elem in self.schema:
+            try:
+                if isinstance(getattr(self,elem), list):
+                    # copy by value
+                    self.dirty_shadow[elem] = getattr(self,elem)[:]
+                else:
+                    self.dirty_shadow[elem] = getattr(self,elem)
+            except:
+                pass
         self.is_dirty = False
+                
 
     def rollback_dirty(self, name=None):
         """
@@ -107,9 +119,25 @@ class ModelObject():
                     self.is_dirty = True
             except:
                 pass
-        # set the value
+        
+        # set the observer in case iterable (list, dict)
+        if isinstance(value, list):
+            #self.__dict__[key] = list_observer(value, self.observer(self))
+            d[name] = list_observer(value, self, name)
+        
+        # actually set the value of the attribute
+
         super().__setattr__(name, d[name])
     
+    def _changed(self, name=None):
+        """
+            receives the messages from list / dictobserver
+            notified for dirty changes. 
+        """
+        print(" _change for iterable: {}".format(str(name)))
+        #if not self.dirty_shadow[name] == getattr(self,name):
+        self.is_dirty = True
+        self.dirty[name] = { "value" : getattr(self,name)[:10] , "dirty" : True }
     #
     # These Methods can normally be inherited
     # 
