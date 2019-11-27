@@ -10,6 +10,10 @@ import werkzeug.security
 from {{appname}}.conf.config import myapp 
 from sqlalchemy.ext.declarative.api import DeclarativeMeta
 
+
+import collections
+Dbinfo = collections.namedtuple('Dbinfo', 'db collection')
+
 class PowBaseMeta(DeclarativeMeta):
     """
         Base Metaclass for PoW SQL Models.

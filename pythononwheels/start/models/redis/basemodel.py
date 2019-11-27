@@ -1,35 +1,65 @@
-from {{appname}}.database.redisdblib import redisdb 
+from {{appname}}.database.redisdblib import generate_connection
 from {{appname}}.models.modelobject import ModelObject
-from {{appname}}.lib.powlib import merge_two_dicts
+from {{appname}}.powlib import merge_two_dicts
 import uuid
+from powlib import Dbinfo
+import datetime
+import simplejson as json
 
 class RedisBaseModel(ModelObject):
     """
         The PoW Basemode for RedisDB
         Keep this as simple as possible
     """
-    
-   
+    # 
+    # set the DB
+    # 
+    #Dbinfo=generate_connection()
+    #db=Dbinfo.db
+    Dbinfo=None
+    db=None
+    def set_connection(self, redis_conf=None):
+        """
+             data from the dict
+             redis_conf  = {
+                "dbname"    :   0,      # zero starting numeric index for redis
+                "host"      :   "",     # host or IP
+                "port"      :   6379,   # well, the port 
+                "passwd"    :   "",     # 
+                "strict"    :   True    # #use strict as default (redis-py > 3 only uses Strict) 
+        """
+        try:
+            Dbinfo = generate_connection(redis_conf=redis_conf)
+            self.__class__.db=Dbinfo.db
+        except Exception as e:
+            raise e
 
-    # set the db
-    db=redisdb
-
-    def init_on_load(self, *args, **kwargs):
+    def init_on_load(self, *args, connect=True,  **kwargs):
         """
             make the neccessary basic inits
+            connect: if True the Model will try to connect to The DB directly
+                -> default: take the config from conf.config.py
+                -> optionally give a specific redis_conf. [Same strutured dict]
         """
-        self.basic_schema = {
-            "_uuid" :  { "type" : "string", "default" : str(uuid.uuid4()) },
-            #"eid"   :   { "type" : "string" },
-            "created_at"    : { "type" : "datetime" },
-            "last_updated"    : { "type" : "datetime" },
-        }
+        if hasattr(self.__class__, '_use_pow_schema_attrs'):
+            if getattr(self.__class__,'_use_pow_schema_attrs'):
+                self.basic_schema = {
+                    "_uuid" :  { "type" : "string", "default" : str(uuid.uuid4()) },
+                    #"eid"   :   { "type" : "string" },
+                    "created_at"    : { "type" : "datetime" },
+                    "last_updated"    : { "type" : "datetime" },
+                }
+            else:
+                self.basic_schema = {}
         
         self.setup_instance_schema()
         self.setup_instance_values()
         self.setup_from_format(**kwargs)
         self.setup_from_kwargs(**kwargs)
         self.init_observers()
+        if connect:
+            self.set_connection(redis_conf=kwargs.get("redis_conf", None))
+
         self.key=None 
 
     def json_load_from_db(self, data, keep_id=False):
@@ -66,10 +96,11 @@ class RedisBaseModel(ModelObject):
         """
         raise NotImplementedError("Subclasses should overwrite this Method.")
     
-    def upsert(self, session=None):
-        """ insert oro update intelligently """
+    def upsert_set(self, session=None):
+        """ insert or update intelligently """
         if self.key != None:
-            self.db.set(self.key, self.to_json())
+            self.last_updated=datetime.datetime.utcnow()
+            self.__class__.db.set(self.key, self.to_json())
         else:
             raise Exception("Error: no key set!")
     
@@ -77,7 +108,8 @@ class RedisBaseModel(ModelObject):
     def find_by_id(self, id=None):
         """ return result by id (only)"""
         if id != None:
-            return self.db.get(id)
+            res = self.db.get(id)
+            return self.init_from_dict(json.loads(res))
         else:
             # take this instance's key
             if self.key != None:
