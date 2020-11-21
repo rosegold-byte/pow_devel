@@ -111,7 +111,7 @@ def main(stdout=False):
     print(60*"-")
     print("starting the PythonOnWheels server Server ")
     print(60*"-")
-    print(f"visit: {app_settings['protocol']}://{app_settings['host']}:{app_settings['port']}")
+    print("visit: {app_settings['protocol']}://{app_settings['host']}:{app_settings['port']}")
     print("starting...")
 
     
